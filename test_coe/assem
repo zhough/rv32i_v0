@@ -1,0 +1,11 @@
+lui x1, 1;
+lui x2, 2;
+lui x3, x1, x2;
+sub x3, x1, x2;
+lui x1, 12;
+lui x2, 6;
+and x3, x1, x2;
+or x3, x1, x2;
+xor x3, x1, x2;
+slli x3, x1, 2;
+bne x1, x2, -12;
