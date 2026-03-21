@@ -155,7 +155,7 @@ end
 //================================
 
 //执行
-reg [31:0] last_pc_ex;  //延迟一个时钟的指令地址
+// reg [31:0] last_pc_ex;  //延迟一个时钟的指令地址
 always @(posedge clk or negedge rst_n)
 begin
     if (!rst_n) begin
@@ -168,7 +168,7 @@ begin
         branch_en_ex <= 1'b0;
         is_jalr_ex <= 1'b0;
         pc_ex <= 32'b0;
-        last_pc_ex <= 32'b0;
+        // last_pc_ex <= 32'b0;
         not_wb_ex <= 1'b1;
         load_op_ex <= 3'b111;
         store_op_ex <= 3'b111;
@@ -186,8 +186,8 @@ begin
         jump_en_ex <= jump_en_id;
         branch_en_ex <= branch_en_id;
         is_jalr_ex <= is_jalr_id;
-        last_pc_ex <= curr_pc_id;
-        pc_ex <= last_pc_ex;
+        // last_pc_ex <= curr_pc_id;
+        pc_ex <= curr_pc_id;
         not_wb_ex <= not_wb_id;
         load_op_ex <= load_op_id;
         store_op_ex <= store_op_id;
