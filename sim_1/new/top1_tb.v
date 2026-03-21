@@ -26,11 +26,17 @@ irom_test u_irom(
 );
 
 //==================== IF module instance start ================
+
+// reg jump_taken_if;
+// reg [31:0] jump_target_if;
+// reg branch_taken_if;
+// reg [31:0] branch_target_if;
+//改为wire
+wire jump_taken_if;
+wire [31:0] jump_target_if;
+wire branch_taken_if;
+wire [31:0] branch_target_if;
 reg [31:0] curr_pc_if;
-reg jump_taken_if;
-reg [31:0] jump_target_if;
-reg branch_taken_if;
-reg [31:0] branch_target_if;
 wire [31:0] next_pc_if;
 wire [31:0] irom_addr_if;
 
@@ -127,8 +133,6 @@ always @(posedge clk or negedge rst_n)
 begin
     if (!rst_n) begin
         curr_pc_if <= 32'b0;
-        jump_taken_if <= 1'b0;
-        branch_taken_if <= 1'b0;
     end
     else begin
         curr_pc_if <= next_pc_if;
@@ -151,6 +155,7 @@ end
 //================================
 
 //执行
+reg [31:0] last_pc_ex;  //延迟一个时钟的指令地址
 always @(posedge clk or negedge rst_n)
 begin
     if (!rst_n) begin
@@ -163,6 +168,7 @@ begin
         branch_en_ex <= 1'b0;
         is_jalr_ex <= 1'b0;
         pc_ex <= 32'b0;
+        last_pc_ex <= 32'b0;
         not_wb_ex <= 1'b1;
         load_op_ex <= 3'b111;
         store_op_ex <= 3'b111;
@@ -180,7 +186,8 @@ begin
         jump_en_ex <= jump_en_id;
         branch_en_ex <= branch_en_id;
         is_jalr_ex <= is_jalr_id;
-        pc_ex <= curr_pc_id;
+        last_pc_ex <= curr_pc_id;
+        pc_ex <= last_pc_ex;
         not_wb_ex <= not_wb_id;
         load_op_ex <= load_op_id;
         store_op_ex <= store_op_id;
@@ -218,21 +225,25 @@ begin
 end
 
 //分支跳转信号赋值
-always @(posedge clk or negedge rst_n)
-begin
-    if (!rst_n) begin
-        branch_taken_if <= 1'b0;
-        branch_target_if <= 32'b0;
-        jump_taken_if <= 1'b0;
-        jump_target_if <= 32'b0;
-    end
-    else begin
-        branch_taken_if <= branch_taken_ex;
-        branch_target_if <= branch_target_ex;
-        jump_taken_if <= jump_taken_ex;
-        jump_target_if <= jump_target_ex;
-    end
-end
+// always @(posedge clk or negedge rst_n)
+// begin
+//     if (!rst_n) begin
+//         branch_taken_if <= 1'b0;
+//         branch_target_if <= 32'b0;
+//         jump_taken_if <= 1'b0;
+//         jump_target_if <= 32'b0;
+//     end
+//     else begin
+//         branch_taken_if <= branch_taken_ex;
+//         branch_target_if <= branch_target_ex;
+//         jump_taken_if <= jump_taken_ex;
+//         jump_target_if <= jump_target_ex;
+//     end
+// end
+assign branch_taken_if = branch_taken_ex;
+assign branch_target_if = branch_target_ex;
+assign jump_taken_if = jump_taken_ex;
+assign jump_target_if = jump_target_ex;
 
 //output 
 wire [31:0] rs1 = rs[1];

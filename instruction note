@@ -1,6 +1,6 @@
-INS     ID编写      ID验证      EX验证
-ADD     完成        完成        
-SUB     完成        完成
+INS     ID编写      ID验证
+ADD     完成        完成       
+SUB     完成        完成       
 SLL     完成        完成
 SLT     完成        完成
 SLTU    完成        /

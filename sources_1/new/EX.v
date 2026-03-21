@@ -42,7 +42,8 @@ end
 assign alu_result = result;
 assign branch_target = $signed(pc) + $signed(imm);
 assign branch_taken = branch_en & alu_result[0];
-assign tmp_target = $signed(a) + $signed(imm);    //所有跳转指令的a记得在顶层传pc的值
+wire [32:0] tmp_target;
+assign tmp_target = $signed(a) + $signed(imm);    
 assign jump_target = is_jalr ? (tmp_target & 32'hFFFFFFFE) : branch_target;    
 assign jump_taken = jump_en;
 assign j_rd = pc + 4;

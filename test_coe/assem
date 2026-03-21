@@ -8,4 +8,7 @@ and x3, x1, x2;
 or x3, x1, x2;
 xor x3, x1, x2;
 slli x3, x1, 2;
-bne x1, x2, -12;
+//bne x1, x2, -12;
+//jal x3, -12;
+jalr x3, -24(x1);
+
