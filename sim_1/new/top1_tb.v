@@ -114,19 +114,20 @@ EX u_EX(
 reg [31:0] rs [31:0];
 
 //传给后续端口的信号
-reg not_wb_ex;
-reg [2:0] load_op_ex, store_op_ex;
-reg [4:0] rd_ex;
+reg not_wb_ex, not_wb_mem;
+reg [2:0] load_op_ex, store_op_ex, load_op_mem;
+reg [4:0] rd_ex, rs2_ex, rd_mem;
 reg [31:0] curr_pc_id;
 reg is_lui_ex, is_auipc_ex;
 //==================================================
 
 //检测写寄存器下一条指令读同一寄存器    (标志位会在译码的下一个周期，即执行周期开始生效)
 wire is_WAR1, is_WAR2; //write after read标志位
+wire is_WAR1_last, is_WAR2_last; //上上条指令的写和当前读为同一寄存器；
 assign is_WAR1 = ((rd_ex == rs1_id) & (rd_ex != 5'b0)) ? 1'b1 : 1'b0;
 assign is_WAR2 = ((rd_ex == rs2_id) & (rd_ex != 5'b0)) ? 1'b1 : 1'b0;
-
-
+assign is_WAR1_last = ((rd_mem == rs1_id) & (rd_mem != 5'b0)) ? 1'b1 : 1'b0;
+assign is_WAR2_last = ((rd_mem == rs2_id) & (rd_mem != 5'b0)) ? 1'b1 : 1'b0;
 //取指
 assign pc_irom = irom_addr_if [9:2];
 always @(posedge clk or negedge rst_n)
@@ -141,21 +142,24 @@ end
 //==============================
 
 //译码
+reg [31:0] curr_pc_id_reg;
 always @(posedge clk or negedge rst_n)
 begin
     if (!rst_n) begin
         ins <= 32'b0;
         curr_pc_id <= 32'b0;
+        curr_pc_id_reg <= 32'b0;
     end
     else begin
         ins <= dout_irom;
-        curr_pc_id <= curr_pc_if;
+        curr_pc_id_reg <= curr_pc_if;
+        curr_pc_id <= curr_pc_id_reg;
     end
 end
 //================================
 
 //执行
-// reg [31:0] last_pc_ex;  //延迟一个时钟的指令地址
+wire [31:0] rs_result;
 always @(posedge clk or negedge rst_n)
 begin
     if (!rst_n) begin
@@ -168,11 +172,11 @@ begin
         branch_en_ex <= 1'b0;
         is_jalr_ex <= 1'b0;
         pc_ex <= 32'b0;
-        // last_pc_ex <= 32'b0;
         not_wb_ex <= 1'b1;
         load_op_ex <= 3'b111;
         store_op_ex <= 3'b111;
         rd_ex <= 5'b0;
+        rs2_ex <= 5'b0;
         is_lui_ex <= 1'b0;
         is_auipc_ex <= 1'b0;
     end
@@ -180,13 +184,15 @@ begin
         alu_op_ex <= alu_op_id;
         alu_src_ex <= alu_src_id;
         //数据旁路选择分支
-        a_ex <= (is_WAR1) ? rs_result : rs [rs1_id];
-        b_ex <= (is_WAR2) ? rs_result : rs [rs2_id];
+        a_ex <= (is_WAR1) ? rs_result : 
+                (is_WAR1_last) ? rs_result_mem : rs [rs1_id];
+        b_ex <= (is_WAR2) ? rs_result : 
+                (is_WAR2_last) ? rs_result_mem : rs [rs2_id];
+        rs2_ex <= rs2_id;
         imm_ex <= imm_id;
         jump_en_ex <= jump_en_id;
         branch_en_ex <= branch_en_id;
         is_jalr_ex <= is_jalr_id;
-        // last_pc_ex <= curr_pc_id;
         pc_ex <= curr_pc_id;
         not_wb_ex <= not_wb_id;
         load_op_ex <= load_op_id;
@@ -199,7 +205,7 @@ end
 //写回
 wire [2:0] wb_op;
 assign wb_op = {is_lui_ex, is_auipc_ex, jump_taken_ex};
-wire [31:0] rs_result;
+
 WB u_wb(
     .wb_op (wb_op),
     .imm (imm_ex),
@@ -209,6 +215,7 @@ WB u_wb(
     .rs_result (rs_result)
 );
 
+wire [31:0] wb_result;
 always @(posedge clk or negedge rst_n)
 begin
     if (!rst_n) begin : init_rs
@@ -218,32 +225,72 @@ begin
         end
     end
     else begin
-        if ((not_wb_ex != 1'b1) & (rd_ex != 5'b0)) begin
-            rs [rd_ex] <= rs_result;
+        if ((not_wb_mem != 1'b1) & (rd_mem != 5'b0)) begin
+            rs [rd_mem] <= wb_result;
         end
     end
 end
 
-//分支跳转信号赋值
-// always @(posedge clk or negedge rst_n)
-// begin
-//     if (!rst_n) begin
-//         branch_taken_if <= 1'b0;
-//         branch_target_if <= 32'b0;
-//         jump_taken_if <= 1'b0;
-//         jump_target_if <= 32'b0;
-//     end
-//     else begin
-//         branch_taken_if <= branch_taken_ex;
-//         branch_target_if <= branch_target_ex;
-//         jump_taken_if <= jump_taken_ex;
-//         jump_target_if <= jump_target_ex;
-//     end
-// end
+//分支跳转
 assign branch_taken_if = branch_taken_ex;
 assign branch_target_if = branch_target_ex;
 assign jump_taken_if = jump_taken_ex;
 assign jump_target_if = jump_target_ex;
+
+
+//mem
+wire is_load, is_store;
+wire [3:0] we;
+wire [31:0] ram_dout;
+wire [31:0] load_data_out;
+wire [7:0] dram_addr;
+
+assign is_load = ~(&load_op_ex);
+assign is_store = ~(&store_op_ex);
+assign we = is_store ? we_store : 4'b0;
+assign dram_addr = alu_result_ex[9:2];
+
+LOAD u_load(
+    .load_op (load_op_mem),
+    .load_data_in (ram_dout),
+    .load_data_out (load_data_out)
+);
+
+STORE u_store(
+    .store_op (store_op_ex),
+    .we (we_store)
+);
+
+blk_mem_gen_0 dram(
+    .clka (clk),
+    .ena (1'b1),
+    .wea (we),
+    .addra (dram_addr),
+    .dina (rs[rs2_ex]),
+    .douta (ram_dout)
+);
+
+reg [31:0] rs_result_mem;
+reg is_load_mem;
+always @(posedge clk or negedge rst_n)
+begin
+    if (!rst_n) begin
+        load_op_mem <= 3'b111;
+        is_load_mem <= 1'b0;
+        rs_result_mem <= 32'b0;
+        not_wb_mem <= 1'b0;
+        rd_mem <= 5'b0;
+    end
+    else begin
+        load_op_mem <= load_op_ex;
+        is_load_mem <= is_load;
+        rs_result_mem <= rs_result;
+        not_wb_mem <= not_wb_ex;
+        rd_mem <= rd_ex;
+
+    end
+end
+assign wb_result = is_load_mem ? load_data_out : rs_result_mem;
 
 //output 
 wire [31:0] rs1 = rs[1];
