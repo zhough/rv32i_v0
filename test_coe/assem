@@ -14,5 +14,6 @@ slli x3, x1, 2;
 lw x3, 12(x0);
 srli x1, x1, 12;
 lh x3, 4(x1);
+slli x3, x3, 2;
 lb x3, 16(x1);
 

@@ -21,7 +21,7 @@ module IF (
     input [31:0] jump_target,
     input branch_taken,
     input [31:0] branch_target,
-
+    input is_LAR,
     output [31:0] next_pc,
     output [31:0] irom_addr
 );
@@ -29,5 +29,6 @@ module IF (
 assign irom_addr = (rst_n) ? curr_pc : 32'b0;
 assign next_pc = jump_taken ? jump_target : 
                 branch_taken ? branch_target :
+                // is_LAR ? curr_pc - 8: 
                 curr_pc + 4;
 endmodule

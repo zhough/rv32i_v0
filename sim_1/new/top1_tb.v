@@ -39,6 +39,7 @@ wire [31:0] branch_target_if;
 reg [31:0] curr_pc_if;
 wire [31:0] next_pc_if;
 wire [31:0] irom_addr_if;
+wire is_LAR_if;
 
 IF u_IF(
     .rst_n (rst_n),
@@ -47,6 +48,7 @@ IF u_IF(
     .jump_target (jump_target_if),
     .branch_taken (branch_taken_if),
     .branch_target (branch_target_if),
+    .is_LAR (is_LAR_if),
     .next_pc (next_pc_if),
     .irom_addr (irom_addr_if)
 );
@@ -123,11 +125,21 @@ reg is_lui_ex, is_auipc_ex;
 
 //检测写寄存器下一条指令读同一寄存器    (标志位会在译码的下一个周期，即执行周期开始生效)
 wire is_WAR1, is_WAR2; //write after read标志位
-wire is_WAR1_last, is_WAR2_last; //上上条指令的写和当前读为同一寄存器；
-assign is_WAR1 = ((rd_ex == rs1_id) & (rd_ex != 5'b0)) ? 1'b1 : 1'b0;
-assign is_WAR2 = ((rd_ex == rs2_id) & (rd_ex != 5'b0)) ? 1'b1 : 1'b0;
-assign is_WAR1_last = ((rd_mem == rs1_id) & (rd_mem != 5'b0)) ? 1'b1 : 1'b0;
+wire is_WAR1_last, is_WAR2_last; //上上条指令的写和当前读为同一寄存器
+wire is_LAR;   //load after read标志位
+wire is_load_id, is_store_id;
+wire is_load, is_store;
+assign is_load_id = ~(&load_op_id);
+assign is_store_id = ~(&store_op_id);
+assign is_load = ~(&load_op_ex);
+assign is_store = ~(&store_op_ex);
+reg is_load_mem, is_store_mem;
+assign is_WAR1 = ((rd_ex == rs1_id) & (rd_ex != 5'b0) & (~is_load)) ? 1'b1 : 1'b0;
+assign is_WAR2 = ((rd_ex == rs2_id) & (rd_ex != 5'b0) & (~is_load)) ? 1'b1 : 1'b0;
+assign is_WAR1_last = ((rd_mem == rs1_id) & (rd_mem != 5'b0)) ? 1'b1 : 1'b0;    //包含了load-x-read类型
 assign is_WAR2_last = ((rd_mem == rs2_id) & (rd_mem != 5'b0)) ? 1'b1 : 1'b0;
+assign is_LAR_if = is_LAR;
+assign is_LAR = ((rd_ex == rs1_id) & (rd_ex != 5'b0) & is_load) ? 1'b1 : 1'b0;
 //取指
 assign pc_irom = irom_addr_if [9:2];
 always @(posedge clk or negedge rst_n)
@@ -136,7 +148,11 @@ begin
         curr_pc_if <= 32'b0;
     end
     else begin
-        curr_pc_if <= next_pc_if;
+        //curr_pc_if <= next_pc_if;
+        if (is_LAR_if) curr_pc_if = curr_pc_if - 8;
+        else begin
+            curr_pc_if = next_pc_if;
+        end 
     end
 end
 //==============================
@@ -185,9 +201,9 @@ begin
         alu_src_ex <= alu_src_id;
         //数据旁路选择分支
         a_ex <= (is_WAR1) ? rs_result : 
-                (is_WAR1_last) ? rs_result_mem : rs [rs1_id];
+                (is_WAR1_last) ? wb_result : rs [rs1_id];   //这种情况包含load-x-read
         b_ex <= (is_WAR2) ? rs_result : 
-                (is_WAR2_last) ? rs_result_mem : rs [rs2_id];
+                (is_WAR2_last) ? wb_result : rs [rs2_id];
         rs2_ex <= rs2_id;
         imm_ex <= imm_id;
         jump_en_ex <= jump_en_id;
@@ -239,14 +255,11 @@ assign jump_target_if = jump_target_ex;
 
 
 //mem
-wire is_load, is_store;
 wire [3:0] we;
 wire [31:0] ram_dout;
 wire [31:0] load_data_out;
 wire [7:0] dram_addr;
 
-assign is_load = ~(&load_op_ex);
-assign is_store = ~(&store_op_ex);
 assign we = is_store ? we_store : 4'b0;
 assign dram_addr = alu_result_ex[9:2];
 
@@ -271,23 +284,23 @@ blk_mem_gen_0 dram(
 );
 
 reg [31:0] rs_result_mem;
-reg is_load_mem;
 always @(posedge clk or negedge rst_n)
 begin
     if (!rst_n) begin
         load_op_mem <= 3'b111;
-        is_load_mem <= 1'b0;
         rs_result_mem <= 32'b0;
         not_wb_mem <= 1'b0;
         rd_mem <= 5'b0;
+        is_load_mem <= 1'b0;
+        is_store_mem <= 1'b0;
     end
     else begin
         load_op_mem <= load_op_ex;
-        is_load_mem <= is_load;
         rs_result_mem <= rs_result;
         not_wb_mem <= not_wb_ex;
         rd_mem <= rd_ex;
-
+        is_load_mem <= is_load;
+        is_store_mem <= is_store;
     end
 end
 assign wb_result = is_load_mem ? load_data_out : rs_result_mem;
