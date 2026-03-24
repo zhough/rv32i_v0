@@ -1,5 +1,6 @@
 1. write-read数据旁路已完成
 2. load-read无法数据旁路需要stall流水线
 3. store-load数据旁路待完成
+4. 分支跳转后清除后续指令
 
 

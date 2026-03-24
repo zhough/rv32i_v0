@@ -149,7 +149,7 @@ begin
     end
     else begin
         //curr_pc_if <= next_pc_if;
-        if (is_LAR_if) curr_pc_if = curr_pc_if - 8;
+        if (is_LAR_if) curr_pc_if = curr_pc_if - 4;
         else begin
             curr_pc_if = next_pc_if;
         end 
@@ -167,9 +167,16 @@ begin
         curr_pc_id_reg <= 32'b0;
     end
     else begin
-        ins <= dout_irom;
-        curr_pc_id_reg <= curr_pc_if;
-        curr_pc_id <= curr_pc_id_reg;
+        if(~is_LAR_if) begin
+            ins <= dout_irom;
+            curr_pc_id_reg <= curr_pc_if;
+            curr_pc_id <= curr_pc_id_reg;
+        end
+        else begin
+            ins <= ins;
+            curr_pc_id_reg <= curr_pc_id_reg;
+            curr_pc_id <= curr_pc_id;
+        end
     end
 end
 //================================
@@ -200,9 +207,9 @@ begin
         alu_op_ex <= alu_op_id;
         alu_src_ex <= alu_src_id;
         //数据旁路选择分支
-        a_ex <= (is_WAR1) ? rs_result : 
+        a_ex <= (is_WAR1) ? rs_result :
                 (is_WAR1_last) ? wb_result : rs [rs1_id];   //这种情况包含load-x-read
-        b_ex <= (is_WAR2) ? rs_result : 
+        b_ex <= (is_WAR2) ? rs_result :
                 (is_WAR2_last) ? wb_result : rs [rs2_id];
         rs2_ex <= rs2_id;
         imm_ex <= imm_id;
